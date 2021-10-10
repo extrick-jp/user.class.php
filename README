@@ -1,0 +1,9 @@
+user.class.php
+たぶん安全なログインクラス
+extrick.jp
+
+user.class.php
+user.class.config.php
+
+セットアップ
+user.class.php と、user.class.config.php を同じディレクトリに保存する。
