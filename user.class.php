@@ -31,7 +31,7 @@ class user {
     private $db;
 
     function __construct(){
-        include './user.class.config.php';
+        include __DIR__.'/user.class.config.php';
 
         $this->db = new mysqli($user_config['db_host'], $user_config['db_user'], $user_config['db_pass'], $user_config['db_name']);
         $this->login_form = $user_config['login_form'];
