@@ -13,7 +13,7 @@
       $user->login(['login'|'admin'|'auth=N'|'guest']);
 ---------------------------------------------------------------------*/
 class user {
-    public $version = '3.0.1';
+    public $version = '3.0.2';
 
     public $userid, $auth;
     public $p = array();
