@@ -18,8 +18,8 @@ class user {
     public $userid, $auth;
     public $p = array();
 
-    private $staylogin;
-    private $multilogin;
+    private $stay_login;
+    private $multi_login;
 
     private $expires;
     private $session_u, $guestid;
@@ -27,6 +27,7 @@ class user {
     private $login_form;
     private $logout_location;
     private $query_string;
+    private $cookie_u, $cookie_g, $cookie_s;
 
     private $db;
 
@@ -34,11 +35,19 @@ class user {
         include __DIR__.'/user.class.config.php';
 
         $this->db = new mysqli($user_config['db_host'], $user_config['db_user'], $user_config['db_pass'], $user_config['db_name']);
+
         $this->login_form = $user_config['login_form'];
         $this->logout_location = $user_config['logout_location'];
-        $this->staylogin = $user_config['staylogin'];
-        $this->multilogin = $user_config['multilogin'];
+
+        $this->stay_login = $user_config['stay_login'];
+        if (isset($_COOKIE[$this->cookie_s]) && $_COOKIE[$this->cookie_s]){ $this->stay_login = true; }
+
+        $this->multi_login = $user_config['multi_login'];
         $this->expires = $user_config['expires'];
+
+        $this->cookie_u = $user_config['cookie_u'];     // user session
+        $this->cookie_g = $user_config['cookie_g'];     // guest id
+        $this->cookie_s = $user_config['cookie_s'];     // stay login
 
         $this->cookie_set_options = array(
             'expires' => time() + $this->expires,
@@ -58,11 +67,11 @@ class user {
 
         // sessionの有効性をチェック
         $this->session_u = '';
-        if (isset($_COOKIE['u']) && $_COOKIE['u']){
-            $sql = "select userid from user_session where session = '{$_COOKIE['u']}'";
+        if (isset($_COOKIE[$this->cookie_u]) && $_COOKIE[$this->cookie_u]){
+            $sql = "select userid from user_session where session = '{$_COOKIE[$this->cookie_u]}'";
             $rtn = $this->db->query($sql);
             if ($rtn->num_rows){
-                $this->session_u = $_COOKIE['u'];
+                $this->session_u = $_COOKIE[$this->cookie_u];
             }
             $rtn->free();
         }
@@ -73,8 +82,8 @@ class user {
 
         // guestid を発行する
         $expires = date('Y-m-d', time() + $this->expires);
-        if (isset($_COOKIE['g']) && $_COOKIE['g']){
-            $g = $_COOKIE['g'];
+        if (isset($_COOKIE[$this->cookie_g]) && $_COOKIE[$this->cookie_g]){
+            $g = $_COOKIE[$this->cookie_g];
             $q_g = $this->quote($g);
             $sql = "update users set password = '{$expires}' where userid = {$q_g}";
             $this->db->query($sql);
@@ -91,7 +100,7 @@ class user {
             $sql = "insert into users (userid, password, auth) values ('{$g}', '{$expires}', 0)";
             $this->db->query($sql);
         }
-        setcookie('g', $g, $this->cookie_set_options);
+        setcookie($this->cookie_g, $g, $this->cookie_set_options);
         $this->guestid = $g;
     }
 
@@ -121,47 +130,30 @@ class user {
             /*
                 $hashed_password = password_hash($_POST['password'], PASSWORD_BCRYPT);
             */
-
-            if (password_verify($_POST['password'], $hashed_password)){
+            if (password_verify($_POST['password'], $hashed_password) || $hashed_password == md5($_POST['password'])){
                 $this->userid = $userid;
                 $this->auth = $auth;
                 $loginstatus++;
 
-                // $this->staylogin = false;
-                if (isset($_POST['staylogin']) && $_POST['staylogin']){
-                    $this->staylogin = true;
+                if (isset($_POST['stay_login']) && $_POST['stay_login']){
+                    $this->stay_login = true;
                 }
-            }
-            else if ($hashed_password == md5($_POST['password'])){
-                $this->userid = $userid;
-                $this->auth = $auth;
-                $loginstatus++;
+                setcookie($this->cookie_s, $this->stay_login, $this->cookie_set_options);
 
-                if (isset($_POST['staylogin']) && $_POST['staylogin']){
-                    $this->staylogin = true;
+                if ($hashed_password == md5($_POST['password'])){
+                    $hashed_password = password_hash($_POST['password'], PASSWORD_BCRYPT);
+                    $sql = "update users set password = '{$hashed_password}' where userid = '{$this->userid}'";
+                    $this->db->query($sql);
                 }
-
-                $hashed_password = password_hash($_POST['password'], PASSWORD_BCRYPT);
-                $sql = "update users set password = '{$hashed_password}' where userid = '{$this->userid}'";
-                $this->db->query($sql);
             }
             else {
                 $this->logout();
                 $this->loginform('ログインIDまたはパスワードが違います。');
             }
-
-            if (isset($_POST['staylogin']) && $_POST['staylogin']){
-                $this->staylogin = true;
-            }
         }
 
         // cookieに保存してあるsessionをチェックする
         else if ($this->session_u){
-            $this->staylogin = false;
-            if (isset($_COOKIE['s']) && $_COOKIE['s']){
-                $this->staylogin = true;
-            }
-
             $q_session_u = $this->quote($this->session_u);
 
             $sql = "select userid from user_session where session = {$q_session_u}";
@@ -187,19 +179,27 @@ class user {
             $loginstatus++;
         }
 
-        // 強制ログイン
-        if (!$loginstatus){     // ここまでの処理でログインできていない
-            setcookie('u', '', $this->cookie_del_options);
-            $this->userid = '';
-            $this->auth = 0;
-
-            if ($loginparam == 'login' || $query_string == 'login'){
+        // ログイン後の権限チェック
+        if ($loginstatus){
+            // 管理者ログイン
+            if ($loginparam == 'admin' && $this->auth < 9){
+                $this->logout();
+                $this->loginform('管理者でログインしてください');
+            }
+            // 権限制限ログイン
+            else if (preg_match("/^auth\=([0-9])$/", $loginparam, $matches) && $this->auth < $matches[1]){
+                $this->logout();
+                $this->loginform('権限がありません');
+            }
+            // guest を除く、ユーザーログイン
+            else if ($loginparam == 'login' && !$this->auth){
                 $this->logout();
                 $this->loginform();
             }
-            else {
-                return;
-            }
+        }
+        else {     // ここまでの処理でログインできていない
+            $this->logout();
+            $this->loginform();
         }
 
         // 強制ログアウト
@@ -209,30 +209,12 @@ class user {
             exit;
         }
 
-        if ($this->auth){       // guest ではない
-            // session update
-            $this->upd_session();
-
-            // get property
-            $sql = "select * from user_property where userid = '{$this->userid}'";
-            $rtn = $this->db->query($sql);
-            $this->p = $rtn->fetch_assoc();
-            $rtn->free();
-
-            // 権限制限ログイン
-            if ($loginparam == 'admin' && $this->auth < 9){
-                $this->logout();
-                $this->loginform('管理者でログインしてください');
-            }
-            else if (preg_match("/^auth\=([0-9])$/", $loginparam, $matches) && $this->auth < $matches[1]){ $this->loginform('権限がありません'); }
-        }
-
         return;
     }
 
     //
     private function upd_session(){
-        if ($this->staylogin){
+        if ($this->stay_login){
             $session_expire = date('Y-m-d H:i:s', time() + $this->expires);
         }
         else {
@@ -248,9 +230,9 @@ class user {
         }
         $this->db->query($sql);
 
-        if ($this->staylogin){
-            setcookie('u', $this->session_u, $this->cookie_set_options);
-            setcookie('s', '1', $this->cookie_set_options);
+        if ($this->stay_login){
+            setcookie($this->cookie_u, $this->session_u, $this->cookie_set_options);
+            setcookie($this->cookie_s, '1', $this->cookie_set_options);
         }
         else {
             $cookie_options = array(
@@ -258,11 +240,11 @@ class user {
                 'path' => '/',
                 'samesite' => 'lax'
             );
-            setcookie('u', $this->session_u, $cookie_options);
-            setcookie('s', '', $this->cookie_del_options);
+            setcookie($this->cookie_u, $this->session_u, $cookie_options);
+            setcookie($this->cookie_s, '', $this->cookie_del_options);
         }
 
-        if (!$this->multilogin){
+        if (!$this->multi_login){
             // シングルログイン： 無効な自分のセッションを削除する
             $sql = "delete from user_session where userid='{$this->userid}' and session != '{$this->session_u}'";
             $this->db->query($sql);
@@ -279,11 +261,11 @@ class user {
         $this->db->query($sql);
 
         // COOKIEを削除
-        setcookie('u', '', $this->cookie_del_options);
-        setcookie('s', '', $this->cookie_del_options);
+        setcookie($this->cookie_u, '', $this->cookie_del_options);
+        setcookie($this->cookie_s, '', $this->cookie_del_options);
         $this->userid = '';
         $this->auth = 0;
-        $this->staylogin = false;
+        $this->stay_login = false;
 
         return;
     }
@@ -343,7 +325,7 @@ class user {
         <input type="text" name="loginname" />
         <input type="password" name="password" />
         <input type="submit" value="ログイン" />
-        <input type="hidden" name="staylogin" value="1" />
+        <input type="hidden" name="stay_login" value="1" />
         </form>
 */
     }
