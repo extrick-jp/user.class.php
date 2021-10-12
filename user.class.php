@@ -34,6 +34,10 @@ class user {
     function __construct(){
         include __DIR__.'/user.class.config.php';
 
+        $this->cookie_u = $user_config['cookie_u'];     // user session
+        $this->cookie_g = $user_config['cookie_g'];     // guest id
+        $this->cookie_s = $user_config['cookie_s'];     // stay login
+
         $this->db = new mysqli($user_config['db_host'], $user_config['db_user'], $user_config['db_pass'], $user_config['db_name']);
 
         $this->login_form = $user_config['login_form'];
@@ -44,10 +48,6 @@ class user {
 
         $this->multi_login = $user_config['multi_login'];
         $this->expires = $user_config['expires'];
-
-        $this->cookie_u = $user_config['cookie_u'];     // user session
-        $this->cookie_g = $user_config['cookie_g'];     // guest id
-        $this->cookie_s = $user_config['cookie_s'];     // stay login
 
         $this->cookie_set_options = array(
             'expires' => time() + $this->expires,
@@ -65,7 +65,7 @@ class user {
         $sql = "delete from user_session where session_expire < '".date('Y-m-d H:i:s')."'";
         $this->db->query($sql);
 
-        // sessionの有効性をチェック
+        // COOKIEに保存されているユーザーセッションIDを取得する
         $this->session_u = '';
         if (isset($_COOKIE[$this->cookie_u]) && $_COOKIE[$this->cookie_u]){
             $sql = "select userid from user_session where session = '{$_COOKIE[$this->cookie_u]}'";
@@ -80,7 +80,7 @@ class user {
         $sql = "delete from users where `auth` = 0 and `password` < '".date('Y-m-d')."'";
         $this->db->query($sql);
 
-        // guestid を発行する
+        // guestid の有効期限を延長する
         $expires = date('Y-m-d', time() + $this->expires);
         if (isset($_COOKIE[$this->cookie_g]) && $_COOKIE[$this->cookie_g]){
             $g = $_COOKIE[$this->cookie_g];
@@ -88,10 +88,11 @@ class user {
             $sql = "update users set password = '{$expires}' where userid = {$q_g}";
             $this->db->query($sql);
         }
+        // guestid を発行する
         else {
             $e = 1;
             while ($e){
-                $g = make_password(32);
+                $g = $this->make_rndstr(32);
                 $sql = "select userid from users where userid = '{$g}'";
                 $rtn = $this->db->query($sql);
                 $e = $rtn->num_rows;
@@ -100,6 +101,7 @@ class user {
             $sql = "insert into users (userid, password, auth) values ('{$g}', '{$expires}', 0)";
             $this->db->query($sql);
         }
+
         setcookie($this->cookie_g, $g, $this->cookie_set_options);
         $this->guestid = $g;
     }
@@ -112,6 +114,13 @@ class user {
         $query_string = '';
         if (isset($_SERVER['QUERY_STRING']) && $_SERVER['QUERY_STRING']){
             $query_string = $_SERVER['QUERY_STRING'];
+        }
+
+        // 強制ログアウト
+        if ($query_string == 'logout' ){
+            $this->logout();
+            header('Location: '.$this->logout_location);   // ログアウト後の遷移先
+            exit;
         }
 
         // loginformからの戻り
@@ -154,12 +163,12 @@ class user {
 
         // cookieに保存してあるsessionをチェックする
         else if ($this->session_u){
-            $q_session_u = $this->quote($this->session_u);
+            $q_session_u = quote($this->session_u);
 
-            $sql = "select userid from user_session where session = {$q_session_u}";
+            $sql = "select userid, stay_login from user_session where session = {$q_session_u}";
             $rtn = $this->db->query($sql);
             if ($rtn->num_rows){
-                list($this->userid) = $rtn->fetch_row();
+                list($this->userid, $this->stay_login) = $rtn->fetch_row();
                 $sql = "select auth from users where userid = '{$this->userid}'";
                 $rtn = $this->db->query($sql);
                 list($this->auth) = $rtn->fetch_row();
@@ -202,12 +211,14 @@ class user {
             $this->loginform();
         }
 
-        // 強制ログアウト
-        if ($query_string == 'logout' ){
-            $this->logout();
-            header('Location: '.$this->logout_location);   // ログアウト後の遷移先
-            exit;
-        }
+        // session update
+        $this->upd_session();
+
+        // get property
+        $sql = "select * from user_property where userid = '{$this->userid}' limit 1";
+        $rtn = $this->db->query($sql);
+        $this->p = $rtn->fetch_assoc();
+        $rtn->free();
 
         return;
     }
@@ -226,10 +237,11 @@ class user {
         }
         else {
             $this->session_u = $this->make_session(32);
-            $sql = "insert into user_session (session, session_expire, userid) values ('{$this->session_u}', '{$session_expire}', '{$this->userid}')";
+            $sql = "insert into user_session (session, session_expire, userid, stay_login) values ('{$this->session_u}', '{$session_expire}', '{$this->userid}', {$this->stay_login})";
         }
         $this->db->query($sql);
 
+        // ログインしたままにする
         if ($this->stay_login){
             setcookie($this->cookie_u, $this->session_u, $this->cookie_set_options);
             setcookie($this->cookie_s, '1', $this->cookie_set_options);
@@ -301,7 +313,8 @@ class user {
         // $_SERVER['SCRIPT_NAME'] -> user.class.php を呼び出したスクリプト
         $_SESSION['ref'] = $_SERVER['SCRIPT_NAME'];
 
-        if (isset($this->auth) && $this->auth){ $this->logout(); }
+        // if (isset($this->auth) && $this->auth){ $this->logout(); }
+        $this->logout();
         header('Location: '.$this->login_form);
         exit;
 
