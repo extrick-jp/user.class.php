@@ -166,10 +166,10 @@ class user {
         else if ($this->session_u){
             $q_session_u = quote($this->session_u);
 
-            $sql = "select userid, stay_login from user_session where session = {$q_session_u}";
+            $sql = "select userid from user_session where session = {$q_session_u}";
             $rtn = $this->db->query($sql);
             if ($rtn->num_rows){
-                list($this->userid, $this->stay_login) = $rtn->fetch_row();
+                list($this->userid) = $rtn->fetch_row();
                 $sql = "select auth from users where userid = '{$this->userid}'";
                 $rtn = $this->db->query($sql);
                 list($this->auth) = $rtn->fetch_row();
@@ -238,7 +238,7 @@ class user {
         }
         else {
             $this->session_u = $this->make_session(32);
-            $sql = "insert into user_session (session, session_expire, userid, stay_login) values ('{$this->session_u}', '{$session_expire}', '{$this->userid}', {$this->stay_login})";
+            $sql = "insert into user_session (session, session_expire, userid) values ('{$this->session_u}', '{$session_expire}', '{$this->userid}')";
         }
         $this->db->query($sql);
 
