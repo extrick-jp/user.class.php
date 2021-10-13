@@ -1,9 +1,47 @@
-user.class.php
-たぶん安全なログインクラス
-extrick.jp
+/*
+    user.class.php
+    たぶん安全なログインクラス
+    extrick.jp
+-------------------------------------------------------------------------------*/
 
 user.class.php
 user.class.config.php
 
 セットアップ
-user.class.php と、user.class.config.php を同じディレクトリに保存する。
+user.class.php と、user.class.config.php を同じディレクトリに置く。
+login.php を置いたパスを、user.class.config.php に書いておく。
+ログイン認証用のテーブルを作成する。
+user_propertyテーブルの内容は自由に設定してね。
+
+SET NAMES utf8;
+SET time_zone = '+00:00';
+SET foreign_key_checks = 0;
+SET sql_mode = 'NO_AUTO_VALUE_ON_ZERO';
+
+DROP TABLE IF EXISTS `users`;
+CREATE TABLE `users` (
+  `userid` varchar(32) COLLATE utf8_unicode_ci NOT NULL,
+  `loginname` varchar(32) COLLATE utf8_unicode_ci NOT NULL,
+  `password` varchar(255) COLLATE utf8_unicode_ci NOT NULL,
+  `auth` tinyint(3) unsigned NOT NULL DEFAULT '0',
+  PRIMARY KEY (`userid`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+
+DROP TABLE IF EXISTS `user_property`;
+CREATE TABLE `user_property` (
+  `userid` varchar(32) COLLATE utf8_unicode_ci NOT NULL,
+
+  `username` varchar(255) COLLATE utf8_unicode_ci NOT NULL,
+  `mailadrs` varchar(255) COLLATE utf8_unicode_ci NOT NULL DEFAULT '',
+
+  PRIMARY KEY (`userid`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+
+DROP TABLE IF EXISTS `user_session`;
+CREATE TABLE `user_session` (
+  `session` varchar(255) COLLATE utf8_unicode_ci NOT NULL,
+  `userid` varchar(255) COLLATE utf8_unicode_ci NOT NULL,
+  `session_expire` varchar(255) COLLATE utf8_unicode_ci NOT NULL,
+  PRIMARY KEY (`session`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+
