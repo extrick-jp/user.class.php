@@ -7,6 +7,7 @@
     version 1.0 - 2016.11.17
     version 2.0 2019. 4. 5 - 2021. 3.23
     version 3.0 2021. 3.25 -
+    version 3.0.2 2021.10. 3 -
 
     Usage:
       $user = new user();
