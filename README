@@ -45,3 +45,12 @@ CREATE TABLE `user_session` (
   PRIMARY KEY (`session`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
+
+
+
+
+
+
+
+Histories.
+3.03 ログアウトできなくなっていたのを修正しました。
