@@ -8,13 +8,14 @@
     version 2.0 2019. 4. 5 - 2021. 3.23
     version 3.0 2021. 3.25 -
     version 3.0.2 2021.10. 3 -
+    version 3.0.3 2021.10.21 -
 
     Usage:
       $user = new user();
       $user->login(['login'|'admin'|'auth=N'|'guest']);
 ---------------------------------------------------------------------*/
 class user {
-    public $version = '3.0.2';
+    public $version = '3.0.3';
 
     public $userid, $auth;
     public $p = array();
@@ -117,13 +118,6 @@ class user {
             $query_string = $_SERVER['QUERY_STRING'];
         }
 
-        // 強制ログアウト
-        if ($query_string == 'logout' ){
-            $this->logout();
-            header('Location: '.$this->logout_location);   // ログアウト後の遷移先
-            exit;
-        }
-
         // loginformからの戻り
         $loginstatus = 0;
         if (isset($_POST['loginname']) && isset($_POST['password'])){
@@ -164,7 +158,7 @@ class user {
 
         // cookieに保存してあるsessionをチェックする
         else if ($this->session_u){
-            $q_session_u = quote($this->session_u);
+            $q_session_u = $this->quote($this->session_u);
 
             $sql = "select userid from user_session where session = {$q_session_u}";
             $rtn = $this->db->query($sql);
@@ -210,6 +204,13 @@ class user {
         else {     // ここまでの処理でログインできていない
             $this->logout();
             $this->loginform();
+        }
+
+        // 強制ログアウト
+        if ($query_string == 'logout' ){
+            $this->logout();
+            header('Location: '.$this->logout_location);   // ログアウト後の遷移先
+            exit;
         }
 
         // session update
@@ -279,7 +280,6 @@ class user {
         $this->userid = '';
         $this->auth = 0;
         $this->stay_login = false;
-
         return;
     }
 
@@ -318,30 +318,6 @@ class user {
         $this->logout();
         header('Location: '.$this->login_form);
         exit;
-
-/*
-        // ログインフォーム 必須項目
-        <?php
-        session_start();
-
-        // $ref: ログイン後の遷移先
-        if (isset($_SESSION['ref']) && $_SESSION['ref']){
-            $ref = $_SESSION['ref'];
-            unset($_SESSION['ref']);
-        }
-        else {
-            $ref = '/';
-        }
-
-        print $msg;
-
-        <form method="POST" action="{$ref}">
-        <input type="text" name="loginname" />
-        <input type="password" name="password" />
-        <input type="submit" value="ログイン" />
-        <input type="hidden" name="stay_login" value="1" />
-        </form>
-*/
     }
 
     public function useradd($loginname, $password, $auth=1){
