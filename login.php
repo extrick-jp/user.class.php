@@ -13,7 +13,12 @@ if (isset($_SESSION['ref'])){
 }
 else { $ref = '/'; }
 
-require_once './user.class.php';
+if (isset($_SESSION['msg'])){
+    $msg = '<div class="message">'.$_SESSION['msg'].'</div>';
+    unset($_SESSION['msg']);
+}
+else { $msg = ''; }
+
 
 ?><!DOCTYPE html>
 
@@ -27,10 +32,11 @@ require_once './user.class.php';
 
 </head>
 <body>
+<?php echo $msg; ?>
 <form method="post" action="<?php echo $ref; ?>">
     <div>Login ID: <input type="text" name="loginname" /></div>
     <div>Password: <input type="password" name="password" /></div>
-    <div><input type="checkbox" name="stay_login" value="1" checked /> ログインしたままにする</div>
+    <div><input type="checkbox" name="stay_login" value="1" checked /> keep login</div>
     <div><input type="submit" value="LOGIN" /></div>
 </form>
 
