@@ -18,18 +18,14 @@ class user {
 
 public $userid, $guestid, $auth, $loginname;
 
-private $session_u;
+private $session_u, $keep_login;
 
 private $config, $db;
 private $expires_time, $expires_date;
-private $cookie_set_options, $cookie_del_options;
 private $script_name;
 
 function __construct(){
-    $this->version = '3.1.0';
-
     include __DIR__.'/user.config.php';
-    if (!isset($this->config['version']) || $this->config['version'] != $this->version){ die('Version error.'); }
 
     $this->expires_time = $this->config['expires'] + time();
     $this->expires_date = date('Y-m-d H:i:s', $this->expires_time);
@@ -41,35 +37,7 @@ function __construct(){
     $this->p = array();
 
     //
-    if (isset($_COOKIE[$this->config['cookie_s']])){
-        if ($_COOKIE[$this->config['cookie_s']]){ $this->config['stay_login'] = true; }
-        else { $this->config['stay_login'] = false; }
-    }
-
-    //
-    if ($this->config['stay_login']){
-        $this->cookie_set_options = array(        // COOKIE Options
-            'expires' => $this->expires_time,
-            'path' => '/',
-            'samesite' => 'lax'
-        );
-        setcookie($this->config['cookie_s'], '1', $this->cookie_set_options);
-    }
-    else {
-        $this->cookie_set_options = array(        // COOKIE Options
-            // 'expires' => 0,           // when close browser, user logout
-            'expires' => time() + 3600,           // when close browser, user logout
-            'path' => '/',
-            'samesite' => 'lax'
-        );
-        setcookie($this->config['cookie_s'], '', $this->cookie_del_options);
-    }
-
-    $this->cookie_del_options = array(
-        'expires' => time() - 3600 * 24,
-        'path' => '/',
-        'samesite' => 'lax'
-    );
+    $this->keep_login = $this->config['keep_login'];
 
     // guest id
     // 古い guestid を削除する
@@ -81,7 +49,6 @@ function __construct(){
         $g = $_COOKIE[$this->config['cookie_g']];
         $q_g = $this->quote($g);
         $sql = "update users set `password` = '{$this->expires_date}' where `userid` = {$g}";
-        $this->db->query($sql);
     }
     // guestid を発行する
     else {
@@ -94,11 +61,10 @@ function __construct(){
             $rtn->free();
         }
         $sql = "insert into users (`userid`, `password`, `auth`) values ('{$g}', '{$this->expires_date}', 0)";
-        $this->db->query($sql);
     }
-    setcookie($this->config['cookie_g'], $g, $this->cookie_set_options);
+    $this->db->query($sql);
+    setcookie($this->config['cookie_g'], $g, $this->get_cookie_options($this->expires_time));
     $this->guestid = $g;
-
 
     // 期限の切れたsessionは削除する
     $sql = "delete from user_session where session_expire < '".date('Y-m-d H:i:s')."'";
@@ -142,6 +108,7 @@ public function login(){
             $this->logout();
             $this->loginform('ログインIDまたはパスワードが違います。');   // ログインフォームに移動してエラーメッセージを表示する
         }
+
         list($userid, $hashed_password, $auth, $loginname) = $rtn->fetch_row();
         $rtn->free();
 
@@ -152,17 +119,6 @@ public function login(){
             $this->userid = $userid;
             $this->auth = $auth;
             $this->loginname = $loginname;
-            $loginstatus++;
-
-            if (isset($_POST['stay_login']) && $_POST['stay_login']){
-                $this->config['stay_login'] = true;
-            }
-            if ($this->config['stay_login']){
-                setcookie($this->config['cookie_s'], '1', $this->cookie_set_options);
-            }
-            else {
-                setcookie($this->config['cookie_s'], '', $this->cookie_del_options);
-            }
 
             // md5 -> bcrypt
             if ($hashed_password == md5($_POST['password'])){
@@ -170,6 +126,7 @@ public function login(){
                 $sql = "update users set `password` = '{$hashed_password}' where `userid` = '{$this->userid}'";
                 $this->db->query($sql);
             }
+            $loginstatus++;
         }
         else {
             $this->logout();
@@ -197,12 +154,18 @@ public function login(){
         }
     }
 
-    // ユーザーIDでログインできていない場合に、引数 'guest' だと、userid <- guestid
-    if ($loginparam == 'guest' && !$this->userid){
+    // ユーザーIDでログインできていない場合に、userid <- guestid
+    if (!$this->userid){
         $this->userid = $this->guestid;
         $this->auth = 0;
         $this->p = array();
         $loginstatus++;
+    }
+
+    // guest を除く、ユーザーログイン
+    if ($loginparam == 'login' && !$this->auth){
+        $this->logout();
+        $this->loginform('ログインしてください');
     }
 
     // ログイン後の権限チェック
@@ -216,11 +179,6 @@ public function login(){
         else if (preg_match("/^auth\=([0-9])$/", $loginparam, $matches) && $this->auth < $matches[1]){
             $this->logout();
             $this->loginform('権限がありません');
-        }
-        // guest を除く、ユーザーログイン
-        else if ($loginparam == 'login' && !$this->auth){
-            $this->logout();
-            $this->loginform('ログインしてください');
         }
     }
 
@@ -254,7 +212,7 @@ private function upd_session(){
         $sql = "insert into user_session (`session`, `session_expire`, `userid`) values ('{$this->session_u}', '{$this->expires_date}', '{$this->userid}')";
     }
     $this->db->query($sql);
-    setcookie($this->config['cookie_u'], $this->session_u, $this->cookie_set_options);
+    setcookie($this->config['cookie_u'], $this->session_u, $this->get_cookie_options($this->expires_time));
 
     // シングルログイン： 無効な自分のセッションを削除する
     if (!$this->config['multi_login']){
@@ -273,15 +231,23 @@ public function logout(){
     }
 
     // COOKIEを削除
-    setcookie($this->config['cookie_u'], '', $this->cookie_del_options);
-    setcookie($this->config['cookie_s'], '', $this->cookie_del_options);
+    setcookie($this->config['cookie_u'], '', $this->get_cookie_options(0));
 
     //
     $this->session_u = '';
     $this->userid = '';
     $this->auth = 0;
     $this->p = array();
+
     return;
+}
+
+private function get_cookie_options($expires){
+    return array(        // COOKIE Options
+        'expires' => $expires,
+        'path' => '/',
+        'samesite' => 'lax'
+    );
 }
 
 public function logging(){

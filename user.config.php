@@ -1,11 +1,9 @@
 <?php
 /*
-	user.class.config.php
+	user.config.php
 -------------------------------------------------------------------------------*/
 $this->config = array(
-    'version' => '3.1.0',
-
-    'stay_login' => true,               // ブラウザを終了してもログインしたままにするか
+    'keep_login' => true,               // ブラウザを終了してもログインしたままにするか
     'multi_login' => true,              // 複数端末からのログインを許可するか
 
     'cookie_u' => 'u',
@@ -16,8 +14,8 @@ $this->config = array(
     'login_url' => '/login.php',      // ログインフォーム
     'logout_url' => 'https://hoge.jp/',  // ログアウトしたときの遷移先
 
-    'db_host' => 'DB_HOST',
-    'db_user' => 'DB_USER',
-    'db_pass' => 'DB_PASS',
-    'db_name' => 'DB_NAME',
+    'db_host' => 'YOUR_DB_HOST',
+    'db_user' => 'YOUR_DB_USER',
+    'db_pass' => 'YOUR_DB_PASS',
+    'db_name' => 'YOUR_DB_NAME',
 );
