@@ -1,7 +1,6 @@
 <?php
 /*
     user.class.php
-    (c) Extrick LLC.
 
     version 1.0 - 2016.11.17
     version 2.0 2019. 4. 5 - 2021. 3.23
@@ -11,13 +10,12 @@
 
     Usage:
       $user = new user();
-      $user->login(['login'|'admin'|'auth=N'|'guest']);
+      $user->login(['login'|'admin'|'auth=N']);
 ---------------------------------------------------------------------*/
 class user {
 
 
 public $userid, $guestid, $auth, $loginname;
-
 
 private $config, $db;
 private $session_u, $keep_login, $expires_time, $script_name;
@@ -25,23 +23,22 @@ private $session_u, $keep_login, $expires_time, $script_name;
 function __construct(){
     include __DIR__.'/user.config.php';
 
-    $this->expires_time = $this->config['expires'] + time();
-
     // DB
     $this->db = new mysqli($this->config['db_host'], $this->config['db_user'], $this->config['db_pass'], $this->config['db_name']);
 
+    $this->expires_time = $this->config['expires'] + time();
     $this->script_name = $_SERVER['SCRIPT_NAME'];
     $this->p = array();
 
-    //
+    // keep login
     $this->keep_login = $this->config['keep_login'];
 
 
-    // 期限の切れたsessionは削除する
+    // Delete expired sessions
     $sql = "delete from user_session where session_expire < '".time()."'";
     $this->db->query($sql);
 
-    // COOKIEに保存されているユーザーセッションIDを取得する
+    // Get user session ID stored in COOKIE
     $this->session_u = '';
     if (isset($_COOKIE[$this->config['cookie_u']]) && $_COOKIE[$this->config['cookie_u']]){
         $sql = "select userid from user_session where session = '{$_COOKIE[$this->config['cookie_u']]}'";
@@ -53,7 +50,6 @@ function __construct(){
 }
 
 
-// ログイン
 public function login(){
     $loginparam = '';
     if (func_num_args()){ $loginparam = func_get_arg(0); }
@@ -69,15 +65,15 @@ public function login(){
         }
     }
 
-    // loginformからの戻り
+    // returned from the login form
     $loginstatus = 0;   // when success login, $loginstatus = 1;
     if (isset($_POST['loginname']) && isset($_POST['password'])){
         $q_loginname = $this->quote($_POST['loginname']);
         $sql = "select `userid`, `password`, `auth`, `loginname` from users where `loginname` = {$q_loginname}";
         $rtn = $this->db->query($sql);
-        if (!$rtn->num_rows){   // 入力した loginname が不正
+        if (!$rtn->num_rows){   // Loginname or password is invalid
             $this->logout();
-            $this->loginform('ログインIDまたはパスワードが違います。');   // ログインフォームに移動してエラーメッセージを表示する
+            $this->loginform('Loginname or password is invalid.');
         }
 
         list($userid, $hashed_password, $auth, $loginname) = $rtn->fetch_row();
@@ -101,14 +97,14 @@ public function login(){
         }
         else {
             $this->logout();
-            $this->loginform('ログインIDまたはパスワードが違います。');
+            $this->loginform('Loginname or password is invalid.');
         }
 
         // keep login
         if (isset($_POST['keep_login']) && $_POST['keep_login']){ $this->keep_login = 1; }
     }
 
-    // cookieに保存してあるsessionをチェックする
+    // Check session stored in cookie
     else if ($this->session_u){
         $q_session_u = $this->quote($this->session_u);
 
@@ -124,41 +120,39 @@ public function login(){
         }
         else {
             $this->logout();
-            $this->loginform('ログインし直してください');
+            $this->loginform('Please login again.');
         }
     }
 
-    // guest を除く、ユーザーログイン
     if ($loginparam && !$this->auth){
         $this->logout();
-        $this->loginform('ログインしてください');
+        $this->loginform('Please login again.');
     }
 
-    // ログイン後の権限チェック
+    // Check permissions
     if ($loginstatus){
-        // 管理者ログイン
+        // admin
         if ($loginparam == 'admin' && $this->auth < 9){
             $this->logout();
-            $this->loginform('管理者でログインしてください');
+            $this->loginform('Please login with administrator privileges.');
         }
-        // 権限制限ログイン
+        // Login with restricted privileges
         else if (preg_match("/^auth\=([0-9])$/", $loginparam, $matches) && $this->auth < $matches[1]){
             $this->logout();
-            $this->loginform('権限がありません');
+            $this->loginform('Not authorized.');
         }
     }
 
-    // ここまでの処理でログインできていない
+    // Cannot login
     else {
         $this->logout();
         return;
     }
 
-    // ログインに成功 sessionを入れ替え
+    // logined. change session ID.
     if ($this->auth){
         // new session
         $session_u = $this->make_session(32);
-
         if ($this->session_u){
             $sql = <<<_SQL_
 update user_session
@@ -182,7 +176,7 @@ _SQL_;
         if ($this->keep_login){ $expires = $this->expires_time; } else { $expires = 0; }
         setcookie($this->config['cookie_u'], $this->session_u, $this->get_cookie_options($expires));
 
-        // シングルログイン： 無効な自分のセッションを削除する
+        // Single login: Delete invalid own sessions
         if (!$this->config['multi_login']){
             $sql = "delete from `user_session` where `userid`='{$this->userid}' and `session` != '{$this->session_u}'";
             $this->db->query($sql);
@@ -200,16 +194,12 @@ _SQL_;
 
 
 public function logout(){
-    // セッションを削除
     if (isset($this->session_u) && $this->session_u){
         $sql = "delete from user_session where `session` = '{$this->session_u}'";
         $this->db->query($sql);
     }
-
-    // COOKIEを削除
     setcookie($this->config['cookie_u'], '', $this->get_cookie_options(0));
 
-    //
     $this->session_u = '';
     $this->userid = '';
     $this->auth = 0;
@@ -219,19 +209,18 @@ public function logout(){
 }
 
 
-// ゲストIDを発行する
 public function issue_guest(){
-    // 古い guestid を削除する
+    // Delete expired guest ID
     $sql = "delete from users where `auth` = 0 and `password` < '".time()."'";
     $this->db->query($sql);
 
-    // guestid の有効期限を延長する
+    // Extend guestid expiration time
     if (isset($_COOKIE[$this->config['cookie_g']]) && $_COOKIE[$this->config['cookie_g']]){
         $g = $_COOKIE[$this->config['cookie_g']];
         $q_g = $this->quote($g);
         $sql = "update users set `password` = '{$this->expires_time}' where `userid` = {$g}";
     }
-    // guestid を発行する
+    // issue guestid
     else {
         $e = 1;
         while ($e){
@@ -251,7 +240,7 @@ public function issue_guest(){
 }
 
 
-// Cookieを発行する際のオプションをセットする
+// Set options for issuing cookies
 private function get_cookie_options($expires){
     return array(        // COOKIE Options
         'expires' => $expires,
@@ -293,9 +282,9 @@ private function quote($val){
 
 
 public function loginform($msg = ''){
-    // セッションがスタートしていなかったらスタートする
+    // Start the session if it has not started
     if (session_status() !== PHP_SESSION_ACTIVE){ session_start(); }
-    // $_SERVER['SCRIPT_NAME'] -> user.class.php を呼び出したスクリプト
+    // $_SERVER['SCRIPT_NAME'] = Script that called user.class.php
     $_SESSION['ref'] = $this->script_name;
     if ($msg){ $_SESSION['msg'] = $msg; }
 

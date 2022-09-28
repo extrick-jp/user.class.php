@@ -1,10 +1,9 @@
 <?php
 /*
-    extrick.jp
     login.php
+    for user.class.php 3.1.x
 
-    2020.11.15 - 2021. 1. 2
-    2021.10.13 without reCAPTCHA
+    extrick.jp
 -------------------------------------------------------------------------------*/
 session_start();
 if (isset($_SESSION['ref'])){
@@ -19,9 +18,7 @@ if (isset($_SESSION['msg'])){
 }
 else { $msg = ''; }
 
-
 ?><!DOCTYPE html>
-
 <html>
 <head>
 <meta charset="UTF-8" />
@@ -36,8 +33,8 @@ else { $msg = ''; }
 <form method="post" action="<?php echo $ref; ?>">
     <div>Login ID: <input type="text" name="loginname" /></div>
     <div>Password: <input type="password" name="password" /></div>
-    <div><input type="checkbox" name="stay_login" value="1" checked /> keep login</div>
-    <div><input type="submit" value="LOGIN" /></div>
+    <div><input type="checkbox" name="keep_login" value="1" checked />: Keep login</div>
+    <div><input type="submit" value="LOGIN!" /></div>
 </form>
 
 </body>
