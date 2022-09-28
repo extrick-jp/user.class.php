@@ -3,12 +3,11 @@
 	user.config.php
 -------------------------------------------------------------------------------*/
 $this->config = array(
-    'keep_login' => true,               // ブラウザを終了してもログインしたままにするか
-    'multi_login' => true,              // 複数端末からのログインを許可するか
+    'keep_login' => 1,               // ブラウザを終了してもログインしたままにするか
+    'multi_login' => 1,              // 複数端末からのログインを許可するか
 
     'cookie_u' => 'u',
     'cookie_g' => 'g',
-    'cookie_s' => 's',
     'expires' => 3600 * 24 * 30,      // cookie_s: 保存したCookieの有効期限
 
     'login_url' => '/login.php',      // ログインフォーム

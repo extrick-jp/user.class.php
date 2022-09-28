@@ -13,11 +13,6 @@ login.php を置いたパスを、user.config.php に書いておく。
 ログイン認証用のテーブルを作成する。
 user_propertyテーブルの内容は自由に設定してね。
 
-SET NAMES utf8;
-SET time_zone = '+00:00';
-SET foreign_key_checks = 0;
-SET sql_mode = 'NO_AUTO_VALUE_ON_ZERO';
-
 CREATE TABLE `users` (
   `userid` varchar(32) COLLATE utf8_unicode_ci NOT NULL,
   `loginname` varchar(32) COLLATE utf8_unicode_ci NOT NULL,

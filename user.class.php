@@ -18,17 +18,14 @@ class user {
 
 public $userid, $guestid, $auth, $loginname;
 
-private $session_u, $keep_login;
 
 private $config, $db;
-private $expires_time, $expires_date;
-private $script_name;
+private $session_u, $keep_login, $expires_time, $script_name;
 
 function __construct(){
     include __DIR__.'/user.config.php';
 
     $this->expires_time = $this->config['expires'] + time();
-    $this->expires_date = date('Y-m-d H:i:s', $this->expires_time);
 
     // DB
     $this->db = new mysqli($this->config['db_host'], $this->config['db_user'], $this->config['db_pass'], $this->config['db_name']);
@@ -39,35 +36,9 @@ function __construct(){
     //
     $this->keep_login = $this->config['keep_login'];
 
-    // guest id
-    // 古い guestid を削除する
-    $sql = "delete from users where `auth` = 0 and `password` < '".date('Y-m-d H:i:s')."'";
-    $this->db->query($sql);
-
-    // guestid の有効期限を延長する
-    if (isset($_COOKIE[$this->config['cookie_g']]) && $_COOKIE[$this->config['cookie_g']]){
-        $g = $_COOKIE[$this->config['cookie_g']];
-        $q_g = $this->quote($g);
-        $sql = "update users set `password` = '{$this->expires_date}' where `userid` = {$g}";
-    }
-    // guestid を発行する
-    else {
-        $e = 1;
-        while ($e){
-            $g = $this->make_rndstr(32);
-            $sql = "select userid from users where userid = '{$g}'";
-            $rtn = $this->db->query($sql);
-            $e = $rtn->num_rows;
-            $rtn->free();
-        }
-        $sql = "insert into users (`userid`, `password`, `auth`) values ('{$g}', '{$this->expires_date}', 0)";
-    }
-    $this->db->query($sql);
-    setcookie($this->config['cookie_g'], $g, $this->get_cookie_options($this->expires_time));
-    $this->guestid = $g;
 
     // 期限の切れたsessionは削除する
-    $sql = "delete from user_session where session_expire < '".date('Y-m-d H:i:s')."'";
+    $sql = "delete from user_session where session_expire < '".time()."'";
     $this->db->query($sql);
 
     // COOKIEに保存されているユーザーセッションIDを取得する
@@ -75,12 +46,12 @@ function __construct(){
     if (isset($_COOKIE[$this->config['cookie_u']]) && $_COOKIE[$this->config['cookie_u']]){
         $sql = "select userid from user_session where session = '{$_COOKIE[$this->config['cookie_u']]}'";
         $rtn = $this->db->query($sql);
-        if ($rtn->num_rows){
-            $this->session_u = $_COOKIE[$this->config['cookie_u']];
-        }
+        if ($rtn->num_rows){ $this->session_u = $_COOKIE[$this->config['cookie_u']]; }
         $rtn->free();
     }
+
 }
+
 
 // ログイン
 public function login(){
@@ -132,16 +103,19 @@ public function login(){
             $this->logout();
             $this->loginform('ログインIDまたはパスワードが違います。');
         }
+
+        // keep login
+        if (isset($_POST['keep_login']) && $_POST['keep_login']){ $this->keep_login = 1; }
     }
 
     // cookieに保存してあるsessionをチェックする
     else if ($this->session_u){
         $q_session_u = $this->quote($this->session_u);
 
-        $sql = "select userid from `user_session` where `session` = {$q_session_u}";
+        $sql = "select userid, keep_login from `user_session` where `session` = {$q_session_u}";
         $rtn = $this->db->query($sql);
         if ($rtn->num_rows){
-            list($this->userid) = $rtn->fetch_row();
+            list($this->userid, $this->keep_login) = $rtn->fetch_row();
             $sql = "select `auth`, `loginname` from users where `userid` = '{$this->userid}'";
             $rtn = $this->db->query($sql);
             list($this->auth, $this->loginname) = $rtn->fetch_row();
@@ -154,16 +128,8 @@ public function login(){
         }
     }
 
-    // ユーザーIDでログインできていない場合に、userid <- guestid
-    if (!$this->userid){
-        $this->userid = $this->guestid;
-        $this->auth = 0;
-        $this->p = array();
-        $loginstatus++;
-    }
-
     // guest を除く、ユーザーログイン
-    if ($loginparam == 'login' && !$this->auth){
+    if ($loginparam && !$this->auth){
         $this->logout();
         $this->loginform('ログインしてください');
     }
@@ -188,10 +154,40 @@ public function login(){
         return;
     }
 
-    // success login
+    // ログインに成功 sessionを入れ替え
     if ($this->auth){
-        // session update
-        $this->upd_session();
+        // new session
+        $session_u = $this->make_session(32);
+
+        if ($this->session_u){
+            $sql = <<<_SQL_
+update user_session
+set
+    `session` = '{$session_u}',
+    `session_expire` = {$this->expires_time},
+    `keep_login` = {$this->keep_login}
+where `session` = '{$this->session_u}'
+_SQL_;
+        }
+        else {
+            $sql = <<<_SQL_
+insert into user_session (`session`, `userid`, `session_expire`, `keep_login`)
+values ('{$session_u}', '{$this->userid}', {$this->expires_time}, {$this->keep_login})
+_SQL_;
+        }
+        $this->db->query($sql);
+        $this->session_u = $session_u;  // change session_u
+
+        // set cookie
+        if ($this->keep_login){ $expires = $this->expires_time; } else { $expires = 0; }
+        setcookie($this->config['cookie_u'], $this->session_u, $this->get_cookie_options($expires));
+
+        // シングルログイン： 無効な自分のセッションを削除する
+        if (!$this->config['multi_login']){
+            $sql = "delete from `user_session` where `userid`='{$this->userid}' and `session` != '{$this->session_u}'";
+            $this->db->query($sql);
+        }
+
         // get property
         $sql = "select * from user_property where `userid` = '{$this->userid}' limit 1";
         $rtn = $this->db->query($sql);
@@ -202,26 +198,6 @@ public function login(){
     return;
 }
 
-//
-private function upd_session(){
-    if ($this->session_u){
-        $sql = "update user_session set `session_expire` = '{$this->expires_date}' where `session` = '{$this->session_u}'";
-    }
-    else {
-        $this->session_u = $this->make_session(32);
-        $sql = "insert into user_session (`session`, `session_expire`, `userid`) values ('{$this->session_u}', '{$this->expires_date}', '{$this->userid}')";
-    }
-    $this->db->query($sql);
-    setcookie($this->config['cookie_u'], $this->session_u, $this->get_cookie_options($this->expires_time));
-
-    // シングルログイン： 無効な自分のセッションを削除する
-    if (!$this->config['multi_login']){
-        $sql = "delete from `user_session` where `userid`='{$this->userid}' and `session` != '{$this->session_u}'";
-        $this->db->query($sql);
-    }
-
-    return;
-}
 
 public function logout(){
     // セッションを削除
@@ -242,6 +218,40 @@ public function logout(){
     return;
 }
 
+
+// ゲストIDを発行する
+public function issue_guest(){
+    // 古い guestid を削除する
+    $sql = "delete from users where `auth` = 0 and `password` < '".time()."'";
+    $this->db->query($sql);
+
+    // guestid の有効期限を延長する
+    if (isset($_COOKIE[$this->config['cookie_g']]) && $_COOKIE[$this->config['cookie_g']]){
+        $g = $_COOKIE[$this->config['cookie_g']];
+        $q_g = $this->quote($g);
+        $sql = "update users set `password` = '{$this->expires_time}' where `userid` = {$g}";
+    }
+    // guestid を発行する
+    else {
+        $e = 1;
+        while ($e){
+            $g = $this->make_rndstr(32);
+            $sql = "select userid from users where userid = '{$g}'";
+            $rtn = $this->db->query($sql);
+            $e = $rtn->num_rows;
+            $rtn->free();
+        }
+        $sql = "insert into users (`userid`, `password`, `auth`) values ('{$g}', '{$this->expires_time}', 0)";
+    }
+    $this->db->query($sql);
+    setcookie($this->config['cookie_g'], $g, $this->get_cookie_options($this->expires_time));
+    $this->guestid = $g;
+
+    return;
+}
+
+
+// Cookieを発行する際のオプションをセットする
 private function get_cookie_options($expires){
     return array(        // COOKIE Options
         'expires' => $expires,
@@ -250,9 +260,11 @@ private function get_cookie_options($expires){
     );
 }
 
+
 public function logging(){
     return;
 }
+
 
 private function make_session($len){
     $e = 1;
@@ -265,6 +277,7 @@ private function make_session($len){
     return $session;
 }
 
+
 private function make_rndstr($len){
     $seedstr = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
     $randmax = strlen($seedstr) - 1;
@@ -273,9 +286,11 @@ private function make_rndstr($len){
     return $rndstr;
 }
 
+
 private function quote($val){
     return "'" . $this->db->real_escape_string($val) . "'";
 }
+
 
 public function loginform($msg = ''){
     // セッションがスタートしていなかったらスタートする
@@ -287,6 +302,7 @@ public function loginform($msg = ''){
     header('Location: '.$this->config['login_url']);
     exit;
 }
+
 
 public function useradd($loginname, $password, $auth=1){
     if ($this->auth < 9){ return false; }
@@ -307,6 +323,7 @@ public function useradd($loginname, $password, $auth=1){
     return $userid;
 }
 
+
 public function userdel($userid){
     if ($this->auth < 9){ return false; }
     $q_userid = $this->quote($userid);
@@ -314,47 +331,11 @@ public function userdel($userid){
     $this->db->query($sql);
     $sql = "delete from user_property where `userid` = {$q_userid}";
     $this->db->query($sql);
+    $sql = "delete from user_session where `userid` = {$q_userid}";
+    $this->db->query($sql);
     return $userid;
 }
 
 
 }   // End of class
 
-/*
--- Adminer 4.7.8 MySQL dump
-
-SET NAMES utf8;
-SET time_zone = '+00:00';
-SET foreign_key_checks = 0;
-SET sql_mode = 'NO_AUTO_VALUE_ON_ZERO';
-
-DROP TABLE IF EXISTS `users`;
-CREATE TABLE `users` (
-  `userid` varchar(32) COLLATE utf8_unicode_ci NOT NULL,
-  `loginname` varchar(32) COLLATE utf8_unicode_ci NOT NULL,
-  `password` varchar(255) COLLATE utf8_unicode_ci NOT NULL,
-  `auth` tinyint(3) unsigned NOT NULL DEFAULT '0',
-  PRIMARY KEY (`userid`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
-
-
-DROP TABLE IF EXISTS `user_property`;
-CREATE TABLE `user_property` (
-  `userid` varchar(32) COLLATE utf8_unicode_ci NOT NULL,
-  `username` varchar(255) COLLATE utf8_unicode_ci NOT NULL,
-  `mailadrs` varchar(255) COLLATE utf8_unicode_ci NOT NULL DEFAULT '',
-  PRIMARY KEY (`userid`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
-
-
-DROP TABLE IF EXISTS `user_session`;
-CREATE TABLE `user_session` (
-  `session` varchar(255) COLLATE utf8_unicode_ci NOT NULL,
-  `userid` varchar(255) COLLATE utf8_unicode_ci NOT NULL,
-  `session_expire` varchar(255) COLLATE utf8_unicode_ci NOT NULL,
-  PRIMARY KEY (`session`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
-
-
--- 2021-03-25 16:30:40
-*/
