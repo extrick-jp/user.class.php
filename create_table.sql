@@ -5,17 +5,16 @@ SET time_zone = '+00:00';
 SET foreign_key_checks = 0;
 SET sql_mode = 'NO_AUTO_VALUE_ON_ZERO';
 
-DROP TABLE IF EXISTS `users`;
 CREATE TABLE `users` (
   `userid` varchar(32) COLLATE utf8_unicode_ci NOT NULL,
   `loginname` varchar(32) COLLATE utf8_unicode_ci NOT NULL,
   `password` varchar(255) COLLATE utf8_unicode_ci NOT NULL,
   `auth` tinyint(3) unsigned NOT NULL DEFAULT '0',
-  PRIMARY KEY (`userid`)
+  PRIMARY KEY (`userid`),
+  UNIQUE KEY `loginname` (`loginname`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
 
-DROP TABLE IF EXISTS `user_property`;
 CREATE TABLE `user_property` (
   `userid` varchar(32) COLLATE utf8_unicode_ci NOT NULL,
   `username` varchar(255) COLLATE utf8_unicode_ci NOT NULL,
@@ -24,7 +23,6 @@ CREATE TABLE `user_property` (
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
 
-DROP TABLE IF EXISTS `user_session`;
 CREATE TABLE `user_session` (
   `session` varchar(255) COLLATE utf8_unicode_ci NOT NULL,
   `userid` varchar(255) COLLATE utf8_unicode_ci NOT NULL,

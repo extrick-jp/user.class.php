@@ -230,7 +230,10 @@ public function issue_guest(){
             $e = $rtn->num_rows;
             $rtn->free();
         }
-        $sql = "insert into users (`userid`, `password`, `auth`) values ('{$g}', '{$this->expires_time}', 0)";
+        $sql = <<<_SQL_
+insert into users (`userid`, `loginname`, `password`, `auth`)
+values ('{$g}', '{$g}', '{$this->expires_time}', 0)
+_SQL_;
     }
     $this->db->query($sql);
     setcookie($this->config['cookie_g'], $g, $this->get_cookie_options($this->expires_time));

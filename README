@@ -7,41 +7,43 @@
 user.class.php
 user.config.php
 
-セットアップ
-user.class.php と、user.config.php を同じディレクトリに置く。
-login.php を置いたパスを、user.config.php に書いておく。
-ログイン認証用のテーブルを作成する。
-user_propertyテーブルの内容は自由に設定してね。
+■インストール
+1. user.class.php と、user.config.php を同じディレクトリに置く。
+2. login.php を適当なディレクトリに置く。
+3. create_table.sql を使って、認証用のテーブルを作成する。
+4. 認証用のテーブルにユーザーを登録する。
+5. user.config.php を適宜書き換える。
 
-CREATE TABLE `users` (
-  `userid` varchar(32) COLLATE utf8_unicode_ci NOT NULL,
-  `loginname` varchar(32) COLLATE utf8_unicode_ci NOT NULL,
-  `password` varchar(255) COLLATE utf8_unicode_ci NOT NULL,
-  `auth` tinyint(3) unsigned NOT NULL DEFAULT '0',
-  PRIMARY KEY (`userid`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
-
-CREATE TABLE `user_property` (
-  `userid` varchar(32) COLLATE utf8_unicode_ci NOT NULL,
-  `username` varchar(255) COLLATE utf8_unicode_ci NOT NULL,
-  `mailadrs` varchar(255) COLLATE utf8_unicode_ci NOT NULL DEFAULT '',
-  PRIMARY KEY (`userid`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
-
-CREATE TABLE `user_session` (
-  `session` varchar(255) COLLATE utf8_unicode_ci NOT NULL,
-  `userid` varchar(255) COLLATE utf8_unicode_ci NOT NULL,
-  `session_expire` varchar(255) COLLATE utf8_unicode_ci NOT NULL,
-  PRIMARY KEY (`session`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+■Installation
+1. Place user.class.php and user.config.php in the same directory.
+2. Put login.php in a suitable directory.
+3. Create a table for authentication using create_table.sql.
+4. Register a user in the table for authentication.
+5. Rewrite user.config.php accordingly.
 
 
+■認証が必要なページのセットアップ
+ページの先頭に、次のコードを追加する。
+
+require_once 'PATH/TO/user.class.php';
+$user = new user();
+$user->login('login');
+
+これだけ！
+ログインしていない端末からこのページにアクセスすると、ログインフォーム（login.php）が表示される。
+
+■Setting up pages that require authentication
+Add the following code to the top of the page.
+
+require_once './user.class.php';
+$user = new user();
+$user->login('login');
+
+Only this!
+If you access this page from a terminal that is not logged in, the login form (login.php) will be displayed.
 
 
+■サポート
+■Support
+URL: https://extrick.jp/codes/user.class/
 
-
-
-
-Histories.
-3.03 ログアウトできなくなっていたのを修正しました。
-3.10 ログインできないケースがあったのを修正しました。
