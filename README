@@ -1,20 +1,19 @@
 /*
     user.class.php
-    たぶん安全なログインクラス
     extrick.jp
 -------------------------------------------------------------------------------*/
 
 user.class.php
 user.config.php
 
-■インストール
+■ インストール
 1. user.class.php と、user.config.php を同じディレクトリに置く。
 2. login.php を適当なディレクトリに置く。
 3. create_table.sql を使って、認証用のテーブルを作成する。
 4. 認証用のテーブルにユーザーを登録する。
 5. user.config.php を適宜書き換える。
 
-■Installation
+■ Installation
 1. Place user.class.php and user.config.php in the same directory.
 2. Put login.php in a suitable directory.
 3. Create a table for authentication using create_table.sql.
@@ -22,7 +21,7 @@ user.config.php
 5. Rewrite user.config.php accordingly.
 
 
-■認証が必要なページのセットアップ
+■ 認証が必要なページのセットアップ
 ページの先頭に、次のコードを追加する。
 
 require_once 'PATH/TO/user.class.php';
@@ -32,7 +31,7 @@ $user->login('login');
 これだけ！
 ログインしていない端末からこのページにアクセスすると、ログインフォーム（login.php）が表示される。
 
-■Setting up pages that require authentication
+■ Setting up pages that require authentication
 Add the following code to the top of the page.
 
 require_once './user.class.php';
@@ -43,7 +42,6 @@ Only this!
 If you access this page from a terminal that is not logged in, the login form (login.php) will be displayed.
 
 
-■サポート
-■Support
+■ More discription
 URL: https://extrick.jp/codes/user.class/
 
