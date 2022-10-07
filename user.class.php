@@ -100,9 +100,9 @@ public function login(){
 
     // Check session stored in cookie
     else if (isset($_COOKIE[$this->config['cookie_u']]) && $_COOKIE[$this->config['cookie_u']]){
-        $session_u = $_COOKIE[$this->config['cookie_u']];
-        $q_session_u = quote($session_u);
-        $sql = "select userid, keep_login from `user_session` where `session` = {$q_session_u}";
+        $this->session_u = $_COOKIE[$this->config['cookie_u']];
+        $q_session_u = quote($this->session_u);
+        $sql = "select `userid`, `keep_login` from `user_session` where `session` = {$q_session_u}";
         $rtn = $this->db->query($sql);
         if ($rtn->num_rows){
             list($this->userid, $this->keep_login) = $rtn->fetch_row();
