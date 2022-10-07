@@ -203,7 +203,7 @@ public function logout(){
 }
 
 
-public function issue_guest(){
+public function guestid(){
     // Delete expired guest ID
     $sql = "delete from users where `auth` = 0 and `password` < '".time()."'";
     $this->db->query($sql);
