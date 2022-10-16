@@ -40,7 +40,9 @@ function __construct(){
 
     // User session ID stored in COOKIE
     $this->session_u = '';
-
+    if (isset($_COOKIE[$this->config['cookie_u']]) && $_COOKIE[$this->config['cookie_u']]){
+        $this->session_u = $_COOKIE[$this->config['cookie_u']];
+    }
 }
 
 
@@ -99,8 +101,7 @@ public function login(){
     }
 
     // Check session stored in cookie
-    else if (isset($_COOKIE[$this->config['cookie_u']]) && $_COOKIE[$this->config['cookie_u']]){
-        $this->session_u = $_COOKIE[$this->config['cookie_u']];
+    else if ($this->session_u){
         $q_session_u = $this->quote($this->session_u);
         $sql = "select `userid`, `keep_login` from `user_session` where `session` = {$q_session_u}";
         $rtn = $this->db->query($sql);
