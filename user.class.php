@@ -3,11 +3,11 @@
     user.class.php
 
     version 1.0 - 2016.11.17
-    version 2.0 2019. 4. 5 - 2021. 3.23
-    version 3.0 2021. 3.25 -
+    version 2.0   2019. 4. 5 - 2021. 3.23
+    version 3.0   2021. 3.25 -
     version 3.0.2 2021.10. 3 -
     version 3.1.0 2022. 7.29 -
-    version 3.2 2022.10.17 -
+    version 3.2   2022.10.17 -
 
     Usage:
       $user = new user();
@@ -119,21 +119,6 @@ _SQL_;
             $this->logout();
             $this->loginform('Please login again.');
         }
-
-        // session update
-/*
-        $new_session = $this->make_session(32);
-        $sql = <<<_SQL_
-update user_session
-set
-`session` = '{$new_session}',
-`session_expire` = {$this->expires_time},
-`keep_login` = {$this->keep_login}
-where `session` = '{$this->session_u}'
-_SQL_;
-        $this->db->query($sql);
-        $this->session_u = $new_session;
-*/
     }
 
 
