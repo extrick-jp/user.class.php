@@ -7,6 +7,7 @@
     version 3.0 2021. 3.25 -
     version 3.0.2 2021.10. 3 -
     version 3.1.0 2022. 7.29 -
+    version 3.2 2022.10.17 -
 
     Usage:
       $user = new user();
@@ -17,22 +18,18 @@ class user {
 
 public $userid, $guestid, $auth, $loginname;
 
-private $config, $db;
-private $session_u, $keep_login, $expires_time, $script_name;
-
 function __construct(){
     include __DIR__.'/user.config.php';
+    $this->expires_time = $this->config['expires'] + time();
 
     // DB
     $this->db = new mysqli($this->config['db_host'], $this->config['db_user'], $this->config['db_pass'], $this->config['db_name']);
 
-    $this->expires_time = $this->config['expires'] + time();
     $this->script_name = $_SERVER['SCRIPT_NAME'];
     $this->p = array();
 
     // keep login
     $this->keep_login = $this->config['keep_login'];
-
 
     // Delete expired sessions
     $sql = "delete from user_session where session_expire < '".time()."'";
@@ -62,7 +59,6 @@ public function login(){
     }
 
     // returned from the login form
-    $loginstatus = 0;   // when success login, $loginstatus = 1;
     if (isset($_POST['loginname']) && isset($_POST['password'])){
         $q_loginname = $this->quote($_POST['loginname']);
         $sql = "select `userid`, `password`, `auth`, `loginname` from users where `loginname` = {$q_loginname}";
@@ -72,16 +68,16 @@ public function login(){
             $this->loginform('Loginname or password is invalid.');
         }
 
-        list($userid, $hashed_password, $auth, $loginname) = $rtn->fetch_row();
+        list($fetch_id, $hashed_password, $fetch_auth, $fetch_name) = $rtn->fetch_row();
         $rtn->free();
 
         /*
             $hashed_password = password_hash($_POST['password'], PASSWORD_BCRYPT);
         */
         if (password_verify($_POST['password'], $hashed_password) || $hashed_password == md5($_POST['password'])){
-            $this->userid = $userid;
-            $this->auth = $auth;
-            $this->loginname = $loginname;
+            $this->userid = $fetch_id;
+            $this->auth = $fetch_auth;
+            $this->loginname = $fetch_name;
 
             // md5 -> bcrypt
             if ($hashed_password == md5($_POST['password'])){
@@ -89,7 +85,6 @@ public function login(){
                 $sql = "update users set `password` = '{$hashed_password}' where `userid` = '{$this->userid}'";
                 $this->db->query($sql);
             }
-            $loginstatus++;
         }
         else {
             $this->logout();
@@ -98,6 +93,14 @@ public function login(){
 
         // keep login
         if (isset($_POST['keep_login']) && $_POST['keep_login']){ $this->keep_login = 1; }
+
+        //
+        $this->session_u = $this->make_session(32);
+        $sql = <<<_SQL_
+insert into user_session (`session`, `userid`, `session_expire`, `keep_login`)
+values ('{$this->session_u}', '{$this->userid}', {$this->expires_time}, {$this->keep_login})
+_SQL_;
+        $this->db->query($sql);
     }
 
     // Check session stored in cookie
@@ -111,90 +114,77 @@ public function login(){
             $rtn = $this->db->query($sql);
             list($this->auth, $this->loginname) = $rtn->fetch_row();
             $rtn->free();
-            $loginstatus++;
         }
         else {
             $this->logout();
             $this->loginform('Please login again.');
         }
+
+        // session update
+/*
+        $new_session = $this->make_session(32);
+        $sql = <<<_SQL_
+update user_session
+set
+`session` = '{$new_session}',
+`session_expire` = {$this->expires_time},
+`keep_login` = {$this->keep_login}
+where `session` = '{$this->session_u}'
+_SQL_;
+        $this->db->query($sql);
+        $this->session_u = $new_session;
+*/
     }
 
-    if ($loginparam && !$this->auth){
+
+    else {
         $this->logout();
         $this->loginform('Please login again.');
     }
 
     // Check permissions
-    if ($loginstatus){
-        // admin
-        if ($loginparam == 'admin' && $this->auth < 9){
-            $this->logout();
-            $this->loginform('Please login with administrator privileges.');
-        }
-        // Login with restricted privileges
-        else if (preg_match("/^auth\=([0-9])$/", $loginparam, $matches) && $this->auth < $matches[1]){
-            $this->logout();
-            $this->loginform('Not authorized.');
-        }
-    }
-
-    // Cannot login
-    else {
+    // admin
+    if ($loginparam == 'admin' && $this->auth < 9){
         $this->logout();
-        return;
+        $this->loginform('Please login with administrator privileges.');
+    }
+    // Login with restricted privileges
+    else if (preg_match("/^auth\=([0-9])$/", $loginparam, $matches) && $this->auth < $matches[1]){
+        $this->logout();
+        $this->loginform('Not authorized.');
     }
 
-    // logined. change session ID.
-    if ($this->auth){
-        // new session
-        $session_u = $this->make_session(32);
-        if ($this->session_u){
-            $sql = <<<_SQL_
-update user_session
-set
-    `session` = '{$session_u}',
-    `session_expire` = {$this->expires_time},
-    `keep_login` = {$this->keep_login}
-where `session` = '{$this->session_u}'
-_SQL_;
-        }
-        else {
-            $sql = <<<_SQL_
-insert into user_session (`session`, `userid`, `session_expire`, `keep_login`)
-values ('{$session_u}', '{$this->userid}', {$this->expires_time}, {$this->keep_login})
-_SQL_;
-        }
+    // set cookie
+    if ($this->keep_login){ $expires = $this->expires_time; } else { $expires = ''; }
+    setcookie($this->config['cookie_u'], $this->session_u, $this->get_cookie_options($expires));
+
+    // Single login: Delete invalid own sessions
+    if (!$this->config['multi_login']){
+        $sql = "delete from `user_session` where `userid`='{$this->userid}' and `session` != '{$this->session_u}'";
         $this->db->query($sql);
-        $this->session_u = $session_u;  // change session_u
-
-        // set cookie
-        if ($this->keep_login){ $expires = $this->expires_time; } else { $expires = 0; }
-        setcookie($this->config['cookie_u'], $this->session_u, $this->get_cookie_options($expires));
-
-        // Single login: Delete invalid own sessions
-        if (!$this->config['multi_login']){
-            $sql = "delete from `user_session` where `userid`='{$this->userid}' and `session` != '{$this->session_u}'";
-            $this->db->query($sql);
-        }
-
-        // get property
-        $sql = "select * from user_property where `userid` = '{$this->userid}' limit 1";
-        $rtn = $this->db->query($sql);
-        $this->p = $rtn->fetch_assoc();
-        $rtn->free();
     }
+
+    // get property
+    $sql = "select * from user_property where `userid` = '{$this->userid}' limit 1";
+    $rtn = $this->db->query($sql);
+    $this->p = $rtn->fetch_assoc();
+    $rtn->free();
 
     return;
 }
 
 
 public function logout(){
+    // Delete session
     if (isset($this->session_u) && $this->session_u){
         $sql = "delete from user_session where `session` = '{$this->session_u}'";
         $this->db->query($sql);
     }
-    setcookie($this->config['cookie_u'], '', $this->get_cookie_options(0));
 
+    // Delete Cookie
+    setcookie($this->config['cookie_u'], '', $this->get_cookie_options('delete'));
+
+    //
     $this->session_u = '';
     $this->userid = '';
     $this->auth = 0;
@@ -204,6 +194,7 @@ public function logout(){
 }
 
 
+// Issue guest-id
 public function guestid(){
     // Delete expired guest ID
     $sql = "delete from users where `auth` = 0 and `password` < '".time()."'";
@@ -239,12 +230,18 @@ _SQL_;
 
 
 // Set options for issuing cookies
-private function get_cookie_options($expires){
-    return array(        // COOKIE Options
-        'expires' => $expires,
+private function get_cookie_options($expires = ''){
+    $array = array(
         'path' => '/',
         'samesite' => 'lax'
     );
+    if ($expires == 'delete'){
+        $array['expires'] = time() - 3600 * 24;
+    }
+    else if ($expires > 0){
+        $array['expires'] = $expires;
+    }
+    return $array;
 }
 
 
