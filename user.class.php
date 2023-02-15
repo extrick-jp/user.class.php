@@ -145,6 +145,10 @@ _SQL_;
 
     }
 
+    else if (empty($loginparam)){
+        return;
+    }
+
     else {
         $this->logout();
         $this->loginform('Please login again.');
