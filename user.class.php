@@ -34,7 +34,6 @@ function __construct(){
     }
     $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-    $this->script_name = $_SERVER['SCRIPT_NAME'];
     $this->p = array();
 
     // keep login
@@ -95,6 +94,11 @@ public function login(){
                 $sql->execute([$hashed_password, $this->userid]);
             }
         }
+
+        else if (empty($loginparam)){
+            return;
+        }
+
         else {
             $this->logout();
             $this->loginform('Loginname or password is invalid.');
@@ -287,8 +291,7 @@ private function make_rndstr($len){
 public function loginform($msg = ''){
     // Start the session if it has not started
     if (session_status() !== PHP_SESSION_ACTIVE){ session_start(); }
-    // $_SERVER['SCRIPT_NAME'] = Script that called user.class.php
-    $_SESSION['ref'] = $this->script_name;
+    $_SESSION['ref'] = $_SERVER['REQUEST_URI'];
     if ($msg){ $_SESSION['msg'] = $msg; }
 
     header('Location: '.$this->config['login_url']);
