@@ -95,10 +95,6 @@ public function login(){
             }
         }
 
-        else if (empty($loginparam)){
-            return;
-        }
-
         else {
             $this->logout();
             $this->loginform('Loginname or password is invalid.');
