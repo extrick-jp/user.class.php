@@ -3,7 +3,7 @@
     user.config.php
     for version 4.x
 -------------------------------------------------------------------------------*/
-$this->config = array(
+$config = array(
     'keep_login' => 0,
     'multi_login' => 1,
     'update_session' => 1,
