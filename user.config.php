@@ -1,12 +1,13 @@
 <?php
 /*
     user.config.php
-    for version 4.x
+    for version 4.2
 -------------------------------------------------------------------------------*/
 $config = array(
     'keep_login' => 0,
     'multi_login' => 1,
     'update_session' => 1,
+    'set_guestid' => 1,
 
     'cookie_u' => 'user',
     'cookie_g' => 'guest',

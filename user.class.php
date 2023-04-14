@@ -56,6 +56,10 @@ function __construct(){
     if (!empty($_COOKIE[$this->cookie_u])){
         $this->session_u = $_COOKIE[$this->cookie_u];
     }
+
+    if ($config['set_guestid']){
+        $this->guestid();
+    }
 }
 
 
